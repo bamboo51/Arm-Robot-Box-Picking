@@ -3,6 +3,7 @@
 Start learning/policy_server.py first, then: python3 scripts/eval_gazebo.py [--pause]
 """
 import json
+import os
 import subprocess
 import sys
 import time
@@ -24,7 +25,8 @@ def move_to(names, positions, topic, sec=2):
 def main():
     cfg = load_scene()
     results = {}
-    for ep_dir in sorted(p.parent for p in (DATASET_DIR / "test").glob("*/episode.npz")):
+    split = os.environ.get("SPLIT", "test")  # SPLIT=val to choose settings without touching the test scenes
+    for ep_dir in sorted(p.parent for p in (DATASET_DIR / split).glob("*/episode.npz")):
         state = np.load(ep_dir / "episode.npz")["state"]
         # start where the expert's arm first moves (upright, gripper reset to 0): before that the expert only waits
         # and resets the gripper, with no visible cue for when it starts, so the policy would wait forever
@@ -37,10 +39,12 @@ def main():
         time.sleep(1.0)
 
         print(f"== {ep_dir.name}", flush=True)
-        node = subprocess.Popen([sys.executable, "scripts/infer_node.py"])
+        rollout = DATASET_DIR.parent / "rollouts" / f"{ep_dir.name}.npz"  # for learning/view_rollout.py
+        rollout.parent.mkdir(exist_ok=True)
+        node = subprocess.Popen([sys.executable, "scripts/infer_node.py"], env={**os.environ, "ROLLOUT": str(rollout)})
         time.sleep((len(state) - start) / 10 + 10)  # the expert's remaining time, plus slack
         node.terminate()
-        node.wait(timeout=10)
+        node.wait(timeout=30)  # saving the rollout's images takes a few seconds
 
         results[ep_dir.name] = box_on_roof(ep_dir, cfg)
         print(f"   success {results[ep_dir.name]['success']}  xy_err {results[ep_dir.name]['xy_err']:.3f}")

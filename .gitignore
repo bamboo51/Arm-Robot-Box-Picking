@@ -21,3 +21,6 @@ learning/checkpoints/
 
 # local settings (proxy)
 .env
+
+# Gazebo rollouts saved by eval_gazebo.py
+rollouts/
