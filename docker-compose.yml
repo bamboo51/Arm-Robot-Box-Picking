@@ -1,0 +1,39 @@
+# Build: docker compose build
+# Start: docker compose up -d
+# PROXY_URL read from .env file
+
+services:
+  crane:
+    image: crane-arm:humble
+    container_name: custom-crane
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        HTTP_PROXY: ${PROXY_URL:-}
+        HTTPS_PROXY: ${PROXY_URL:-}
+    environment:
+      RESOLUTION: 1920x1080
+      HTTP_PROXY: ${PROXY_URL:-}
+      HTTPS_PROXY: ${PROXY_URL:-}
+      http_proxy: ${PROXY_URL:-}
+      https_proxy: ${PROXY_URL:-}
+      NO_PROXY: localhost,127.0.0.1,::1
+      no_proxy: localhost,127.0.0.1,::1
+    ports:
+      - "15900:5900"
+      - "13389:3389"
+      - "9090:9090"
+      - "9876:9876"
+      - "6080:80"
+    volumes:
+      - .:/home/ubuntu/airobot_ws/src/user_code
+    shm_size: 512m
+    privileged: true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
