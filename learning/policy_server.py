@@ -22,6 +22,8 @@ cfg = PreTrainedConfig.from_pretrained(ckpt)
 cfg.pretrained_path = ckpt  # without this make_policy builds random weights
 # N=1 re-plans every tick; from rest the first action is ~"stay", so N>1 executes more of the chunk to get moving
 cfg.n_action_steps = int(os.environ.get("N", 1))
+if "TE" in os.environ:  # ACT temporal ensembling: average the overlapping chunks every tick (needs N=1)
+    cfg.temporal_ensemble_coeff, cfg.n_action_steps = float(os.environ["TE"]), 1
 rename = RENAME if cfg.type == "smolvla" else {}
 meta = LeRobotDatasetMetadata("local/crane_pick_place", root=REPO/"lerobot_data/crane_pick_place")
 policy = make_policy(cfg, ds_meta=meta, rename_map=rename).eval()
