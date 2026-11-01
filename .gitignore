@@ -12,9 +12,15 @@ __pycache__/
 *.png
 
 # dataset
-datasets/
+datasets*/
 fuel_cache/
-lerobot_data/
+lerobot_data*/
 
 # checkpoint
 learning/checkpoints/
+
+# local settings (proxy)
+.env
+
+# Gazebo rollouts saved by eval_gazebo.py
+rollouts/

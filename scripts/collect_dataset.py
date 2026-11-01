@@ -7,28 +7,31 @@ import time
 import shutil
 from pathlib import Path
 from sim_utils import DATASET_DIR, load_scene, place_scene, read_pose
+from convert2npz import export
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from constants import CAM_TOPICS
 
-# No /clock: ~1 kHz of tiny messages overflows the writer; message stamps suffice.
-TOPICS = [
-    "/joint_states",
-    "/camera_top/image_raw", "/camera_left/image_raw", "/camera_right/image_raw"
-]
-# Record on the container's own disk; the bind-mounted repo is too slow for raw images.
+# No /clock: ~1 kHz of tiny messages overflows the writer; message stamps suffice
+TOPICS = ["/joint_states", *CAM_TOPICS]
+
+# Record on the container's own disk; the bind-mounted repo is too slow for raw images
 LOCAL = Path.home() / "bags_temp"
-XY_TOL, Z_TOL = 0.03, 0.01  # m; box center vs roof center, box bottom vs roof top
 
 def box_on_roof(ep_dir, cfg) -> dict:
     """Read the final box pose from Gazebo and check it rests on the car roof."""
     roof = json.loads((ep_dir / "initial_pose.json").read_text(encoding="utf-8"))["scene"]["car"]
+    tol = cfg["success"]
     time.sleep(1.0)  # let the dropped box settle
     x, y, z = read_pose(cfg["box"]["name"])
     roof_z = cfg["box"]["spawn_z"] + cfg["car"]["roof_z"]  # Gazebo z of the roof top
     xy_err = ((x - roof["roof_x"]) ** 2 + (y - roof["roof_y"]) ** 2) ** 0.5
-    return {"success": xy_err < XY_TOL and abs(z - roof_z) < Z_TOL,
+    return {"success": xy_err < tol["xy_tolerance"] and abs(z - roof_z) < tol["z_tolerance"],
             "final_box": {"x": x, "y": y, "z": z}, "xy_err": xy_err}
 
 def record_episode(ep_dir, cfg) -> int:
     s = json.loads((ep_dir / "initial_pose.json").read_text(encoding="utf-8"))["scene"]
+    name = ep_dir.relative_to(DATASET_DIR).as_posix()  # e.g. "train/random_..._000013"
     bag_tmp = LOCAL / ep_dir.name
     shutil.rmtree(bag_tmp, ignore_errors=True)
     LOCAL.mkdir(parents=True, exist_ok=True)
@@ -41,7 +44,7 @@ def record_episode(ep_dir, cfg) -> int:
         time.sleep(2.0)
         expert = subprocess.run(
             ["ros2", "launch", "crane_dataset_expert", "dataset_expert.launch.py"],
-            env={**os.environ, "EPISODE": ep_dir.name},
+            env={**os.environ, "EPISODE": name},  # the launch file reads datasets/<EPISODE>/initial_pose.json
         )
     finally:
         bag.send_signal(signal.SIGINT)
@@ -59,7 +62,7 @@ def main():
     cfg = load_scene()
 
     # iterate on all episodes in the dataset
-    for ep_dir in sorted(DATASET_DIR.iterdir()):
+    for ep_dir in sorted(p.parent for p in DATASET_DIR.rglob("initial_pose.json")):
         result = ep_dir / "result.json"
         if result.exists():
             continue
@@ -68,7 +71,10 @@ def main():
 
         print(f"== {ep_dir.name} ==")
         code = record_episode(ep_dir, cfg)
-        result.write_text(json.dumps({"expert_exit": code, **box_on_roof(ep_dir, cfg)}))
+        outcome = {"expert_exit": code, **box_on_roof(ep_dir, cfg)}
+        result.write_text(json.dumps(outcome))
+        if code == 0 and outcome["success"]:  # same filter as convert2npz.py
+            export(ep_dir)
 
 if __name__ == "__main__":
     main()

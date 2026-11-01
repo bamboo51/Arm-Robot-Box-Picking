@@ -1,31 +1,41 @@
 """Send camera images and joint states to learning/policy_server.py and publish its actions at 10 Hz.
 python3 scripts/infer_node.py
 """
+import os
+import signal
+import sys
+
 import numpy as np
 import rclpy
 import zmq
 from rclpy.node import Node
+from rclpy.parameter import Parameter
 from builtin_interfaces.msg import Duration
 from sensor_msgs.msg import Image, JointState
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 ARM = ["crane_plus_joint1", "crane_plus_joint2", "crane_plus_joint3", "crane_plus_joint4"]
 HAND = ["crane_plus_joint_hand"]
-CAMS = {"/camera_top/image_raw": "top", "/camera_left/image_raw": "left",
-        "/camera_right/image_raw": "right"}
+CAMS = {"/camera_top/image_raw": "top",
+        # "/camera_left/image_raw": "left", "/camera_right/image_raw": "right",
+        "/camera_wrist/image_raw": "wrist"}
 SERVER = "tcp://127.0.0.1:5555"
 STEP = 0.1  # 10 Hz, same as training
+ROLLOUT = os.environ.get("ROLLOUT")  # set by eval_gazebo.py: where to save this run's states, actions and images
+K = 5  # the action is the joint target K*STEP ahead (learning/build_dataset.py K); reach it in that time, not in one STEP
 
 
 class PolicyClient(Node):
     def __init__(self):
-        super().__init__("policy_client")
+        # sim time: when Gazebo lags, the 10 Hz loop slows with it instead of acting faster than in training
+        super().__init__("policy_client", parameter_overrides=[Parameter("use_sim_time", value=True)])
         self.sock = zmq.Context().socket(zmq.REQ)
         self.sock.setsockopt(zmq.RCVTIMEO, 5000)
         self.sock.connect(SERVER)
         self.first = True
 
         self.state, self.images = None, {}
+        self.log = []  # (sim time, state, action, images) per tick, saved to ROLLOUT for view_rollout.py
         self.create_subscription(JointState, "/joint_states", self.on_joints, 10)
         for topic, name in CAMS.items():
             self.create_subscription(Image, topic, lambda m, n=name: self.on_image(n, m), 10)
@@ -52,18 +62,34 @@ class PolicyClient(Node):
         except zmq.Again:
             self.get_logger().error("policy server did not answer within 5 s")
             raise SystemExit(1)
+        self.get_logger().info(f"state {np.round(self.state, 2)}  action {np.round(action, 2)}")
+        if ROLLOUT:
+            self.log.append((self.get_clock().now().nanoseconds * 1e-9, self.state.copy(), np.array(action, np.float32),
+                             {k: v for k, v in self.images.items()}))
         self.publish(self.arm_pub, ARM, action[:4])
         self.publish(self.hand_pub, HAND, action[4:])
 
     def publish(self, pub, names, positions):
         pt = JointTrajectoryPoint(positions=[float(p) for p in positions],
-                                  time_from_start=Duration(sec=0, nanosec=int(STEP * 1e9)))
+                                  time_from_start=Duration(sec=0, nanosec=int(K * STEP * 1e9)))
         pub.publish(JointTrajectory(joint_names=names, points=[pt]))
+
+
+    def save(self):
+        if not (ROLLOUT and self.log):
+            return
+        t, state, action, images = zip(*self.log)
+        np.savez_compressed(ROLLOUT, t=np.array(t) - t[0], state=np.array(state), action=np.array(action),
+                            **{c: np.stack([im[c] for im in images]) for c in CAMS.values()})
+        print(f"saved rollout {ROLLOUT} ({len(t)} ticks)", flush=True)
 
 
 def main():
     rclpy.init()
-    rclpy.spin(PolicyClient())
+    node = PolicyClient()
+    # eval_gazebo.py ends an episode with SIGTERM; save the rollout and exit instead of dying mid-publish
+    signal.signal(signal.SIGTERM, lambda *_: (node.save(), sys.exit(0)))
+    rclpy.spin(node)
 
 
 if __name__ == "__main__":
