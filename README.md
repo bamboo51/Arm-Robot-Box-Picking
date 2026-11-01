@@ -11,7 +11,7 @@ This project is the source code developed as part of final assignment in UTokyo 
 This simulation runs on Gazebo and ROS2 Humble for CRANE+ to grab the box and place it to the car position. This repo also trained the ACT [1] model that uses the images from top view and gripper, and joints state for imitation learning. The original world is referenced from the reference [2,3].
 
 <img width="1992" height="982" alt="image" src="https://github.com/user-attachments/assets/32561b11-5fd4-433c-a777-f84cfcdd3415" />
-
+YouTube video: https://youtu.be/QIHJ2aa_FPA?si=tyzqP1tWc467VJy8
 
 ## Long-Term Plan
 - [ ] Improve the precision on grabbing the box to lift higher than the height of the car.
