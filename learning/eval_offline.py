@@ -18,7 +18,9 @@ from gripper_label import hand_target
 
 ROOT = Path(os.environ.get("DATA", Path.home() / "arm/lerobot_data/crane_pick_place")).expanduser()
 K = int(os.environ.get("K", 5))
-BLACK = os.environ.get("BLACK") == "1"  # ablation: black images; if the error barely changes, the policy ignores vision
+# ablation: BLACK=1 blanks every camera, BLACK=top / BLACK=wrist blanks one; if the error barely changes, that view is unused
+BLACK = os.environ.get("BLACK", "")
+BLANK = "observation.images" if BLACK == "1" else f"observation.images.{BLACK}"
 RENAME = {"observation.images.top": "observation.images.camera1",
           "observation.images.left": "observation.images.camera2",
           "observation.images.right": "observation.images.camera3"}
@@ -64,7 +66,7 @@ policy.reset()
 with torch.no_grad():
     for obs, action in frames():
         if BLACK:
-            obs = {k: v * 0 if k.startswith("observation.images") else v for k, v in obs.items()}
+            obs = {k: v * 0 if k.startswith(BLANK) else v for k, v in obs.items()}
         state.append(obs["observation.state"].numpy())
         pred.append(post(policy.select_action(pre(obs))).squeeze(0).cpu().numpy())
         true.append(action.numpy())
