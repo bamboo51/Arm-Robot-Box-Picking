@@ -54,8 +54,9 @@ setsid ros2 launch \
 pids+=("$!")
 if [[ "$CAMERAS" == 1 ]]; then
   bridge_args=()
-  # for camera in top left right wrist; do
-  for camera in top wrist; do
+  # cameras from constants.py
+  cameras=$(python3 -c "import sys; sys.path.insert(0, '$project_root'); from constants import CAMS; print(*CAMS)")
+  for camera in $cameras; do
     bridge_args+=(
       "/camera_${camera}/image_raw@sensor_msgs/msg/Image[ignition.msgs.Image"
       "/camera_${camera}/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo"
