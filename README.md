@@ -24,11 +24,11 @@ YouTube video: https://youtu.be/QIHJ2aa_FPA?si=tyzqP1tWc467VJy8
 ## Getting Started
 
 ### Dataset
-The dataset used for training the ACT model is on [Train set](https://huggingface.co/datasets/Phongwit/crane_pick_place_topwrist). This include the images from top view, images from wrist view, and the joints state around 70 episodes. 
-For validation set and test set, is separated from the training set. They are formatted using the initial position of the box and the car, along with the trajectory .npz file. These files can be found at this dataset. [NPZ dataset](https://huggingface.co/datasets/Phongwit/crane_pick_place_episodes/tree/main)
+The dataset used for training the ACT model is on [Train set](https://huggingface.co/datasets/bamboo51/crane_pick_place_topwrist). This include the images from top view, images from wrist view, and the joints state around 70 episodes. 
+For validation set and test set, is separated from the training set. They are formatted using the initial position of the box and the car, along with the trajectory .npz file. These files can be found at this dataset. [NPZ dataset](https://huggingface.co/datasets/bamboo51/crane_pick_place_episodes/tree/main)
 
 ### Trained Model
-You can download the trained ACT model at: [Phongwit's Huggingface Model](https://huggingface.co/Phongwit/act_crane_topwrist/)
+You can download the trained ACT model at: [Bamboo51's Huggingface Model](https://huggingface.co/bamboo51/act_crane_topwrist/)
 
 ## Useful Commands
 All useful commands are included in the [docs/commands.md](docs/commands.md).
